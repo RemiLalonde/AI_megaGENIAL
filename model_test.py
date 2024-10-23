@@ -110,7 +110,7 @@ class ModelTester:
             model_info['state_dict'][leak_key] = leak_value
 
         # Save information to a JSON file using a custom encoder
-        with open('model_info.json', 'w') as json_file:
+        with open('output/model_info.json', 'w') as json_file:
             json.dump({'model': model_info}, json_file, cls=NumpyEncoder)
 
         print("Model information saved to 'model_info.json'")
