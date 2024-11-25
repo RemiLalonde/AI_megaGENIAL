@@ -20,10 +20,18 @@ class ModelTester:
         self.data_processor = DataProcessor()
 
     def load_model(self):
-        """Load the saved model from the specified path."""
+        """Load the saved model from the specified path and convert it for quantized inference."""
+        # Step 1: Initialize the model and set the custom QAT configuration
         model = SpikingNN()
-        model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu'),  weights_only=True))
-        model.eval()
+        # custom_qconfig =  torch.quantization.get_default_qconfig('fbgemm')
+        # model.qconfig = custom_qconfig
+
+        # Step 2: Load the non-quantized weights into the QAT-prepared model
+        model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
+
+        # Step 3: Convert the model to a fully quantized format for inference
+        # model = torch.quantization.convert(model.eval(), inplace=False)
+
         return model
 
     def prepare_test_data(self):
@@ -42,6 +50,48 @@ class ModelTester:
         labels = labels[shuffled_indices]  # Reorder the labels
 
         return matrices, labels
+
+    def prepare_single_sample(self, file_path, label, sample_index=10):
+        """Load and prepare a single data sample for evaluation."""
+        matrices, labels = [], []
+        matrices, labels = self.data_processor.load_csv_to_matrices(matrices, labels, file_path, label,
+                                                                    reverse_flag=False)
+
+        # Convert to tensor and select a single sample based on sample_index
+        matrices = torch.tensor(np.array(matrices), dtype=torch.float32)
+        labels = torch.tensor([label], dtype=torch.long)  # Single label tensor
+
+        # Select only one sample at sample_index (default is the first sample)
+        single_sample = matrices[sample_index].unsqueeze(0)  # Add batch dimension
+        single_label = labels[sample_index].unsqueeze(0) if len(labels) > 1 else labels  # Handle single-label case
+        print(single_sample)
+        return single_sample, single_label
+
+    def test_single_sample(self, file_path, label, save_info):
+        """Load the model, prepare a single data sample, and evaluate the model's output."""
+        # Load the model
+        model = self.load_model()
+
+        # Prepare a single sample for testing
+        X_test, y_test = self.prepare_single_sample(file_path, label)
+
+        # Perform prediction
+        with torch.no_grad():
+            output = model(X_test)
+            print("Model Output:", output)
+            _, predicted_label = torch.max(output, 1)
+            print("Predicted Label:", predicted_label.item())
+
+        # Check if the prediction is correct
+        correct = (predicted_label == y_test).item()
+        accuracy = 1.0 if correct else 0.0
+        print(f'Accuracy: {accuracy * 100:.2f}%')
+
+        if save_info:
+            # Save model information if required
+            self.save_model_info(model)
+
+        return accuracy
 
     def test_model(self, save_info):
         """Load the model, prepare data, and evaluate the model's accuracy."""
@@ -110,7 +160,7 @@ class ModelTester:
             model_info['state_dict'][leak_key] = leak_value
 
         # Save information to a JSON file using a custom encoder
-        with open('output/model_info.json', 'w') as json_file:
+        with open('output/model_info_smoll_french_3_classes.json', 'w') as json_file:
             json.dump({'model': model_info}, json_file, cls=NumpyEncoder)
 
         print("Model information saved to 'model_info.json'")
@@ -124,11 +174,14 @@ class ModelTester:
         # Optionally, normalize the confusion matrix
         cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         disp = ConfusionMatrixDisplay(confusion_matrix=cm,
-                                      display_labels=[0, 1, 2, 3])  # Adjust class labels based on your dataset
+                                      display_labels=[0, 1, 2])  # Adjust class labels based on your dataset
 
         # Plot the confusion matrix
         disp.plot(cmap=plt.cm.Blues)
-        plt.title("Confusion Matrix")
+        # Set axis labels in French
+        plt.xlabel("Classe prédite", fontsize=14)  # Predicted class
+        plt.ylabel("Classe réelle", fontsize=14)  # Actual class
+        plt.title("Matrice de Confusion", fontsize=16)
         plt.show()
 
     @staticmethod
@@ -170,22 +223,25 @@ class ModelTester:
 
 if __name__ == "__main__":
     # Path to the saved model
-    model_path = './output/output.pth'  # Path where the trained model is saved
+    model_path = './output/small_model_3_classes.pth'  # Path where the trained model is saved
 
     # List of file paths and corresponding labels for testing
     data_path_list = [
         ('Data/right_side_seizure_encode.csv', 0),
         ('Data/right_side_no_seizure_encode.csv', 1),
         ('Data/left_side_seizure_encode.csv', 2),
-        ('Data/left_side_no_seizure_encode.csv', 3)
+        ('Data/left_side_no_seizure_encode.csv', 1)
     ]
 
     data_path_list_Test = [
         ('Data/right_side_seizure_encode_test_set.csv', 0),
         ('Data/right_side_no_seizure_encode_test_set.csv', 1),
         ('Data/left_side_seizure_encode_test_set.csv', 2),
-        ('Data/left_side_no_seizure_encode_test_set.csv', 3)
+        ('Data/left_side_no_seizure_encode_test_set.csv', 1)
     ]
     # Instantiate the ModelTester and run the test
     tester = ModelTester(model_path, data_path_list_Test)
-    tester.test_model(save_info=False)
+    single_sample_path = 'Data/left_side_seizure_encode_test_set.csv'  # Replace with your desired test file
+    label = 2 # Replace with the appropriate label for the sample
+
+    tester.test_single_sample(file_path=single_sample_path, label=label, save_info=False)

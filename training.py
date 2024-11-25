@@ -12,10 +12,12 @@ class Trainer:
         self.batch_size = batch_size
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.loss_fn = torch.nn.CrossEntropyLoss()
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=5, verbose=True)
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=5)
         self.early_stopping = EarlyStopping(patience=self.patience)
+        self.start_quantization_epoch = 10
 
-    def train(self, X_train, y_train, X_val, y_val, epochs=100, save_path="./output/model_testing.pth"):
+
+    def train(self, X_train, y_train, X_val, y_val, epochs=100, save_path="./output/small_model_3_classes.pth"):
         train_data = TensorDataset(X_train, y_train)
         val_data = TensorDataset(X_val, y_val)
         train_loader = DataLoader(train_data, batch_size=self.batch_size, shuffle=True)
@@ -62,15 +64,17 @@ class Trainer:
 
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
+
+                # Temporarily convert to quantized model for saving
                 torch.save(self.model.state_dict(), save_path)
-                print(f"Best model saved with validation loss: {best_val_loss:.4f}")
+
+                print("New best model saved.")
 
             print(f'Epoch [{epoch+1}/{epochs}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Train Acc: {train_acc:.4f}, Val Acc: {val_acc:.4f}')
 
             if self.early_stopping.check_early_stop(val_loss):
                 print("Early stopping triggered.")
                 break
-
         return train_losses, val_losses, train_accuracies, val_accuracies
 
     @staticmethod
@@ -91,22 +95,22 @@ class Trainer:
             return accuracy
 
     @staticmethod
-    def plot_and_save_curves(train_losses, val_losses, train_accuracies, val_accuracies, save_path='learning_curve_output.png'):
+    def plot_and_save_curves(train_losses, val_losses, train_accuracies, val_accuracies, save_path='learning_curve_3_classes.png'):
         plt.subplot(1, 2, 1)
-        plt.plot(train_losses, label='Training Loss')
-        plt.plot(val_losses, label='Validation Loss')
-        plt.title('Loss Curve')
+        plt.plot(train_losses, label='Perte d\'Entraînement')
+        plt.plot(val_losses, label='Perte de Validation')
+        plt.title('Courbe de Perte')
         plt.xlabel('Epochs')
-        plt.ylabel('Loss')
+        plt.ylabel('Perte')
         plt.legend()
         plt.grid(True)
 
         plt.subplot(1, 2, 2)
-        plt.plot(train_accuracies, label='Training Accuracy')
-        plt.plot(val_accuracies, label='Validation Accuracy')
-        plt.title('Accuracy Curve')
+        plt.plot(train_accuracies, label='Précision d\'Entraînement')
+        plt.plot(val_accuracies, label='Précision de Validation')
+        plt.title('Courbe de Précision')
         plt.xlabel('Epochs')
-        plt.ylabel('Accuracy')
+        plt.ylabel('Précision')
         plt.legend()
         plt.grid(True)
 
