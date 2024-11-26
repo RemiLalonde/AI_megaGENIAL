@@ -5,7 +5,7 @@ from data_processing import DataProcessor
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+
 # Custom encoder to convert tensors to lists for JSON serialization
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -28,6 +28,15 @@ class ModelTester:
 
         # Step 2: Load the non-quantized weights into the QAT-prepared model
         model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
+
+        highest_bias_neurons = self.get_highest_bias_neurons(model, top_k=6)
+
+        # Print the results
+        print("Top 6 neurons with the highest biases in each layer:")
+        for layer_name, neurons in highest_bias_neurons.items():
+            print(f"Layer {layer_name}:")
+            for neuron_index, bias_value in neurons:
+                print(f"  Neuron {neuron_index}: Bias = {bias_value}")
 
         # Step 3: Convert the model to a fully quantized format for inference
         # model = torch.quantization.convert(model.eval(), inplace=False)
@@ -220,6 +229,31 @@ class ModelTester:
         plt.suptitle("Incorrect Predictions - Column Values")
         plt.tight_layout()
         plt.show()
+
+    def get_highest_bias_neurons(self, model, top_k=6):
+        """
+        Extract the neurons with the highest biases for each layer in the model.
+
+        Args:
+            model (torch.nn.Module): The trained model.
+            top_k (int): Number of neurons with the highest bias to return per layer.
+
+        Returns:
+            dict: A dictionary where keys are layer names and values are lists of tuples
+                  (neuron index, bias value) for the top-k neurons with the highest biases.
+        """
+        highest_bias_neurons = {}
+
+        for name, layer in model.named_modules():
+            if isinstance(layer, torch.nn.Linear) and layer.bias is not None:
+                # Get biases and sort them
+                biases = layer.bias.detach().cpu().numpy()
+                top_indices = biases.argsort()[-top_k:][::-1]  # Indices of top-k largest biases
+
+                # Store results in a dictionary
+                highest_bias_neurons[name] = [(index, biases[index]) for index in top_indices]
+
+        return highest_bias_neurons
 
 if __name__ == "__main__":
     # Path to the saved model
