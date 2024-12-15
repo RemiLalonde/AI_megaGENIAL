@@ -1,0 +1,13 @@
+version: '3'
+services:
+  DatasetGenerator:
+    image: test_code_1:latest
+    command: ["bash", "-c", "sleep infinity"]
+    working_dir: /app
+    volumes:
+      - ./src:/app
+  SAE_snnTorch:
+    image:
+    command:
+    working_dir:
+    volumes:
