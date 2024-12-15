@@ -1,0 +1,9 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+
+# Ignore all JSON, H5, and PTH files
+*.json
+*.h5
+*.pth
+*.csv
