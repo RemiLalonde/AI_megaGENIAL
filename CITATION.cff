@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Lalonde, Gélinas
+    given-names: Rémi, Benjamin
+title: "SNN spike sorting repos for NeuroSOC"
+version: 0.0.1
+date-released: 2024-04-20
